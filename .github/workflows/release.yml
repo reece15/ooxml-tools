@@ -2,81 +2,55 @@ name: Create Release
 
 on:
   push:
-    branches:
-      - master
-  workflow_dispatch:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+permissions:
+  contents: write
+  pull-requests: read
 
 jobs:
-  create-release:
+  build:
     runs-on: ubuntu-latest
-    
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 0
-    
-    - name: Get latest tag
-      id: get_tag
+
+    - name: Get next version
+      id: version
       run: |
-        # Get the latest tag, or use v1.0.0 if no tags exist
+        # 获取最新的tag版本
         latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
-        echo "latest_tag=$latest_tag" >> $GITHUB_OUTPUT
+        echo "Latest tag: $latest_tag"
         
-        # Extract version numbers
+        # 提取版本号并加1
         version=${latest_tag#v}
         IFS='.' read -r major minor patch <<< "$version"
-        
-        # Increment patch version
         new_patch=$((patch + 1))
         new_version="v$major.$minor.$new_patch"
         
-        echo "new_version=$new_version" >> $GITHUB_OUTPUT
-        echo "Previous version: $latest_tag"
         echo "New version: $new_version"
-    
-    - name: Create zip archive
+        echo "new_version=$new_version" >> $GITHUB_OUTPUT
+
+    - name: Zip all files
       run: |
-        # Create a zip file with all project files
-        zip -r "ooxml-tools-${{ steps.get_tag.outputs.new_version }}.zip" . \
-          -x ".git/*" ".github/*" "node_modules/*" "*.log" ".DS_Store" "Thumbs.db"
-    
+        zip -r ooxml-tools-${{ steps.version.outputs.new_version }}.zip . \
+          -x ".git/*" ".github/*" "node_modules/*" "*.zip" ".gitignore"
+
     - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      uses: softprops/action-gh-release@v2
       with:
-        tag_name: ${{ steps.get_tag.outputs.new_version }}
-        release_name: Release ${{ steps.get_tag.outputs.new_version }}
+        tag_name: ${{ steps.version.outputs.new_version }}
+        name: Release ${{ steps.version.outputs.new_version }}
         body: |
-          ## Changes in this release
+          自动生成的发布版本 ${{ steps.version.outputs.new_version }}
           
-          Automated release created from push to main branch.
-          
-          ## Download
-          - **Source Code (zip)**: All project files packaged as a zip archive
-          
-          ## Installation
-          1. Download the zip file
-          2. Extract to your desired location
-          3. Follow the instructions in README.md
+          包含所有文件的完整版本。
+        files: ooxml-tools-${{ steps.version.outputs.new_version }}.zip
         draft: false
         prerelease: false
-    
-    - name: Upload Release Asset
-      uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./ooxml-tools-${{ steps.get_tag.outputs.new_version }}.zip
-        asset_name: ooxml-tools-${{ steps.get_tag.outputs.new_version }}.zip
-        asset_content_type: application/zip
-    
-    - name: Create and push new tag
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git tag ${{ steps.get_tag.outputs.new_version }}
-        git push origin ${{ steps.get_tag.outputs.new_version }}
