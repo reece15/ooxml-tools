@@ -1,4 +1,4 @@
-# OOXML Tools V4 - Chrome扩展 (Manifest V3)
+# OOXML Tools - Chrome扩展 (Manifest V3)
 
 [English](./readme.md) | **中文**
 
